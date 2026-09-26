@@ -1,46 +1,71 @@
-<!-- 主页：一句话说清产品，把人送进三段示例。
-     产品名和口号都来自 brand.js（页面里不写字面量）。 -->
+<!-- 主页：完全照搬参考稿的形式 ——
+     顶部品牌行 + 特大号左对齐标语 + 斜放的暗色标本卡（橄榄绿圆衬底）+
+     浅绿说明面板 + 橙色主按钮/描边副按钮。
+     产品名来自 brand.js（页面里不写字面量）。 -->
 <view class="page">
 
-  <!-- 顶部：名字 + 一句话介绍。名字是个动作，副标题接着解释收什么手 —— 不说教，说机制。 -->
+  <!-- 品牌行：橙色圆角小方块 + 名字 -->
+  <view class="brand">
+    <view class="brand__icon">
+      <text class="brand__emoji">✋</text>
+    </view>
+    <text class="brand__name">{{appName}}</text>
+  </view>
+
+  <!-- 特大号标语：两行，左对齐，是全页最大的字 -->
   <view class="hero">
-    <text class="hero__name">{{appName}}</text>
-    <text class="hero__slogan">{{slogan}}</text>
-    <text class="hero__sub">它叫什么名字、怎么起作用 —— 看明白，再决定买不买。</text>
+    <text class="hero__line">先看清，</text>
+    <text class="hero__line">再下单。</text>
   </view>
 
-  <!-- 中段：这条产品线怎么走。教 → 练 → 放手，最后按住只看商品 -->
-  <view class="steps">
-    <view class="step">
-      <text class="step__no">1</text>
-      <view class="step__body">
-        <text class="step__title">看</text>
-        <text class="step__desc">示例替你指出来：每处设计叫什么、怎么起作用</text>
+  <!-- 标本卡：橄榄绿圆衬底，卡片微微斜放，角标挂在卡右缘外 -->
+  <view class="specimen">
+    <view class="specimen__circle"></view>
+    <view class="specimen__card">
+      <view class="specimen__head">
+        <view class="specimen__glyph">
+          <text class="specimen__emoji">🎧</text>
+        </view>
+        <view class="specimen__meta">
+          <text class="specimen__goods">无线降噪耳机</text>
+          <view class="specimen__price">
+            <text class="specimen__now">¥ 299</text>
+            <text class="specimen__was">¥ 399</text>
+          </view>
+        </view>
       </view>
-    </view>
-    <view class="step">
-      <text class="step__no">2</text>
-      <view class="step__body">
-        <text class="step__title">找</text>
-        <text class="step__desc">先替你标一处，剩下的自己点出来</text>
+      <view class="trap">
+        <view class="trap__row">
+          <text class="trap__left">再买 ¥ 101</text>
+          <text class="trap__right">立减 ¥ 50</text>
+        </view>
+        <view class="trap__tag">凑单诱导</view>
       </view>
-    </view>
-    <view class="step">
-      <text class="step__no">3</text>
-      <view class="step__body">
-        <text class="step__title">放手</text>
-        <text class="step__desc">全靠自己找，看你能认出几处</text>
+      <view class="trap">
+        <view class="trap__row">
+          <text class="trap__left">优惠即将结束</text>
+          <text class="trap__right">00 : 14 : 59</text>
+        </view>
+        <view class="trap__tag">制造紧迫感</view>
       </view>
     </view>
   </view>
 
-  <!-- 底部：两个入口。主按钮进示例；上传是阶段 7 的事，诚实地置灰 -->
+  <!-- 浅绿说明面板：只留加粗反问一句 -->
+  <view class="note">
+    <text class="note__title">为了省 ¥ 50，多花 ¥ 101？</text>
+  </view>
+
+  <!-- 入口：橙色主按钮「上传截图」直达 journey 第四屏；描边按钮「看看例子」从头走示例。
+       宽度与面板对齐 -->
+  <!-- 入口：主按钮「看看例子」是产品的主要功能，橙色大字；
+       「上传截图」直达第四屏，描边次按钮。宽度与面板对齐 -->
   <view class="entry">
-    <button class="entry__main" bindtap="onStartExamples">开始三段示例</button>
-    <button class="entry__upload" disabled="{{!uploadReady}}">
-      上传自己的截图
-      <text class="entry__badge">即将上线</text>
-    </button>
+    <button class="entry__primary" bindtap="onStartExamples">看看例子</button>
+    <button class="entry__secondary" bindtap="onUploadTap">上传截图</button>
   </view>
+
+  <!-- 署名 -->
+  <text class="credit">— created by Frank —</text>
 
 </view>

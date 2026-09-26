@@ -1,11 +1,39 @@
 <view class="page">
 
-  <!-- 第四屏还没选图：选图块替代舞台。三段示例永远走不到这里 -->
-  <view class="own-pick" wx:if="{{isOwn && ownState === 'pick'}}" bindtap="onPickImage">
-    <text class="own-pick__title">选一张你自己的截图</text>
-    <text class="own-pick__hint">购物、支付、活动页都行</text>
-    <view class="own-pick__btn">
-      <text class="own-pick__btn-text">从相册选，或拍一张</text>
+  <!-- 第四屏还没选图：选图区替代舞台。三段示例永远走不到这里。
+       排版按定稿：大标题 → 三张可选示例卡 → 虚线上传行 → 开始分析大按钮 -->
+  <view class="own-pick" wx:if="{{isOwn && ownState === 'pick'}}">
+    <text class="own-pick__title">选择截图</text>
+
+    <!-- 三张示例卡：点一下只是选中（橙框 + 对勾），链路由「开始分析」启动。
+         catchtap 别让点击冒泡（这一块没有整块点击，只防将来） -->
+    <view class="own-pick__samples">
+      <view
+        wx:for="{{sampleImages}}"
+        wx:key="*this"
+        class="own-pick__sample {{ownSampleIndex === index ? 'own-pick__sample--on' : ''}}"
+        data-index="{{index}}"
+        catchtap="onPickSample"
+      >
+        <view class="own-pick__shotbox">
+          <image class="own-pick__shot" src="{{item}}" mode="aspectFill" />
+          <view class="own-pick__radio {{ownSampleIndex === index ? 'own-pick__radio--on' : ''}}">
+            <text wx:if="{{ownSampleIndex === index}}" class="own-pick__tick">✓</text>
+          </view>
+        </view>
+        <text class="own-pick__label {{ownSampleIndex === index ? 'own-pick__label--on' : ''}}">{{sampleLabels[index]}}</text>
+      </view>
+    </view>
+
+    <!-- 上传自己的图：虚线框一行。选完立刻走读图链路，不用再点开始分析 -->
+    <view class="own-pick__upload" catchtap="onPickImage">
+      <text class="own-pick__upload-text">上传截图</text>
+      <text class="own-pick__upload-arrow">›</text>
+    </view>
+
+    <!-- 开始分析：选中一张示例图才走链路；没选时点一下只弹提示 -->
+    <view class="own-pick__go" catchtap="onStartAnalyze">
+      <text class="own-pick__go-text">开始分析 ›</text>
     </view>
   </view>
 
@@ -36,27 +64,29 @@
         class="hit"
         style="{{item.style}}"
         data-id="{{item.id}}"
-        data-order="{{item.order}}"
         catchtap="onHitTap"
       ></view>
-      <!-- 已经标出来的：带编号的框，点它把对应卡片切过来 -->
+      <!-- 教学屏还没点到的：同样是一块透明热区。
+           入口在图上，不在卡片上 —— 先点中，卡片才上线 -->
+      <view
+        wx:elif="{{!item.revealed}}"
+        class="hit"
+        style="{{item.style}}"
+        data-id="{{item.id}}"
+        catchtap="onHitTap"
+      ></view>
+      <!-- 已经标出来的：带编号的框（编号 = 找到的先后，第一个点中的是 ①），
+           点它把对应卡片切过来 -->
       <view
         wx:elif="{{item.revealed}}"
         class="mark"
         style="{{item.style}}"
-        data-order="{{item.order}}"
+        data-id="{{item.id}}"
         catchtap="onMarkTap"
       >
         <text class="mark__no">{{item.order}}</text>
       </view>
     </block>
-
-    <!-- 点破差异的那句话：压在图上，不占版面。
-         它落在刚才那几处消失的位置附近，眼睛不用挪开。
-         只让东西「灰掉」不够 —— 得给差异一个名字。 -->
-    <view class="banner" wx:if="{{holdBanner}}">
-      <text class="banner__text">{{holdBanner}}</text>
-    </view>
 
     <!-- 左右翻页箭头：贴屏幕两侧边缘、图的垂直中点。
          stage 只有 82% 宽，两侧各约 9% 空白 —— 箭头就住在那里，不压图不挡热区。
@@ -125,15 +155,18 @@
   >
     <swiper-item wx:for="{{hooks}}" wx:key="id">
       <view
-        class="card {{item.revealed ? 'card--on' : ''}} {{item.hidden ? 'card--hidden' : ''}}"
+        class="card {{item.revealed ? 'card--on' : 'card--ghost'}}"
         data-id="{{item.id}}"
         bindtap="onCardTap"
       >
-        <view class="card__head">
-          <text class="card__name">{{item.hidden ? '第 ' + item.order + ' 处' : item.name}}</text>
-          <text class="card__state">{{item.state}}</text>
+        <!-- 卡片是「点中之后的结果」：没点中只留空壳占位，点了才上线 -->
+        <view class="card__inner" wx:if="{{item.revealed}}">
+          <view class="card__head">
+            <text class="card__name">{{item.hidden ? '第 ' + item.order + ' 处' : item.name}}</text>
+            <text class="card__state">{{item.state}}</text>
+          </view>
+          <text class="card__note">{{item.note}}</text>
         </view>
-        <text class="card__note">{{item.note}}</text>
       </view>
     </swiper-item>
   </swiper>

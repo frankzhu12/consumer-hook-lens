@@ -38,7 +38,7 @@ const ok = analyze.outcome(RESP({ annotations: [ann(), ann({ id: 'B1' })] }));
 suite.eq('有结果时进 DONE', ok.state, 'done');
 suite.ok('并且不算失败', ok.failed === false);
 suite.eq('标注映射过来了', ok.hooks.length, 2);
-suite.eq('引导条说清下一步', ok.guide, '它读出了 2 处 · 点卡片看它在哪');
+suite.eq('引导条说清下一步', ok.guide, '它读出了 2 处 · 点图上的框，看每一处是什么');
 suite.eq('有结果时不需要那句「没有」', ok.notice, null);
 suite.eq('来源原样带出来（排查要用）', ok.source, 'model');
 

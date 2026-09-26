@@ -31,7 +31,7 @@ const IMAGE = 'https://example.com/a.jpg';
 suite.eq(
   '三个环境变量都读到了',
   mh.readConfig(ENV),
-  { baseUrl: ENV.MODEL_BASE_URL, apiKey: ENV.MODEL_API_KEY, model: ENV.MODEL_NAME, reasoningEffort: 'none' }
+  { baseUrl: ENV.MODEL_BASE_URL, apiKey: ENV.MODEL_API_KEY, model: ENV.MODEL_NAME, reasoningEffort: 'none', imageDetail: 'high' }
 );
 
 suite.eq(
@@ -40,7 +40,7 @@ suite.eq(
   'https://example.com/v1'
 );
 
-suite.eq('什么都没配时读到三个空串，思考强度默认 none', mh.readConfig({}), { baseUrl: '', apiKey: '', model: '', reasoningEffort: 'none' });
+suite.eq('什么都没配时读到三个空串，思考强度默认 none，图片保真默认 high', mh.readConfig({}), { baseUrl: '', apiKey: '', model: '', reasoningEffort: 'none', imageDetail: 'high' });
 
 // ---------- 关思考（reasoning_effort）----------
 //
@@ -120,7 +120,8 @@ async function main() {
     const content = call.body.messages[0].content;
     suite.eq('消息里是两段：文字 + 图片', content.length, 2);
     suite.eq('第一段是提示词', content[0], { type: 'text', text: PROMPT });
-    suite.eq('第二段是图片地址', content[1], { type: 'image_url', image_url: { url: IMAGE } });
+    // detail 默认 high：输出是坐标，视觉定位精度和图的保真度直接相关（低档图被压缩过）
+    suite.eq('第二段是图片地址，带默认的 high 保真档', content[1], { type: 'image_url', image_url: { url: IMAGE, detail: 'high' } });
     suite.eq('超时传给了 httpPost（自己不管超时就会耗光整个函数）', call.timeoutMs, mh.DEFAULT_TIMEOUT_MS);
 
     // 关思考必须真的进了请求体 —— 少发这个字段，线上就是 18 秒起跳
@@ -136,6 +137,25 @@ async function main() {
       '配成空串时请求体里没有 reasoning_effort 字段',
       !('reasoning_effort' in post.calls[0].body)
     );
+  }
+
+  // detail 同一条规矩：不吃它的端点配成空串，image_url 里就不能出现这个字段
+  {
+    const post = makePost(function () { return ok200('{}'); });
+    const cfg = mh.readConfig(Object.assign({}, ENV, { MODEL_IMAGE_DETAIL: '' }));
+    await tryCall(mh.createHttpCallModel({ config: cfg, httpPost: post, prompt: PROMPT, image: IMAGE }));
+    suite.eq(
+      'MODEL_IMAGE_DETAIL 配成空串时 image_url 里没有 detail 字段',
+      post.calls[0].body.messages[0].content[1].image_url,
+      { url: IMAGE }
+    );
+  }
+
+  {
+    const post = makePost(function () { return ok200('{}'); });
+    const cfg = mh.readConfig(Object.assign({}, ENV, { MODEL_IMAGE_DETAIL: 'low' }));
+    await tryCall(mh.createHttpCallModel({ config: cfg, httpPost: post, prompt: PROMPT, image: IMAGE }));
+    suite.eq('显式配的保真档按配的来', post.calls[0].body.messages[0].content[1].image_url.detail, 'low');
   }
 
   // omni 这类模型会分段返回

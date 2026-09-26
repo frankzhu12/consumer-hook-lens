@@ -127,5 +127,17 @@ suite.ok(
   'prompt 里「最多 12 个字」的说法和解析层的上限一致',
   text.indexOf('最多 ' + detectParse.MAX_EVIDENCE + ' 个字') !== -1
 );
+suite.ok(
+  'prompt 里「最多 4 处」的说法和解析层的上限一致（模型多报的会被裁掉，指令里就得说清）',
+  text.indexOf('最多 ' + detectParse.MAX_ANNOTATIONS + ' 处') !== -1
+);
+
+// --- 框的是整个元素，不是一句文字 ---
+//
+// 视觉模型最常犯的错就是只框一行字 —— 框小了，手指按不住，按住只看商品时
+// 也盖不住整个设计。这条指令是 2026-09-26 从外部经验里吸收的，要守着别漂。
+
+suite.ok('prompt 里写了「框住完整的界面元素」', text.indexOf('完整的界面元素') !== -1);
+suite.ok('prompt 里写了「不要只框其中一句文字」', text.indexOf('不要只框其中一句文字') !== -1);
 
 suite.done();

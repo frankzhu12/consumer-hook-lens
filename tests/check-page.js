@@ -124,9 +124,8 @@ page.onPrevShot();
 suite.eq('第一张点「上一张」不动', page.data.shotIndex, 0);
 suite.eq('教学屏进场时一处都没标出', page.data.holdReady, false);
 suite.eq('教学屏进场时按钮下面的小字是「先标出一处」', page.data.holdHint, hold.HOLD_LOCKED_TEXT);
-suite.eq('进场时图上没有横幅', page.data.holdBanner, '');
 suite.eq('进场时没有盖子', coveredOf(page).length, 0);
-suite.eq('进场时引导条告诉用户先去点卡片', page.data.guide, '点下面的卡片，看它在图上的哪里');
+suite.eq('进场时引导条让用户直接点图', page.data.guide, '点图上你觉得是消费陷阱的地方，这里会告诉你它是什么');
 suite.eq('教学屏没有「直接显示」退路（没有「找」可跳过）', page.data.skipLabel, '');
 
 // --- 一处都没标出时按住：按下也不动，只给一句提示 ---
@@ -137,11 +136,13 @@ suite.eq('没标出时按下去也不会进入按住态', page.data.holding, fal
 suite.eq('没标出时按下去会给一句提示', toasts[0], hold.HOLD_LOCKED_TEXT);
 
 // --- 标出一处，按钮才活 ---
+// 入口在图上：点中 hook，卡片才上线（点卡片只是教学屏上还留着的备用路径）
 
-page.onCardTap(tap(null, 'A1'));
-suite.eq('标出一处后按钮可用了', page.data.holdReady, true);
+page.onHitTap(tap(null, 'A1', 1));
+suite.eq('教学屏点图上的热区也能标出一处', page.data.holdReady, true);
+suite.eq('标出后卡片跟着上线', page.data.hooks[0].revealed, true);
+suite.eq('点中后轮到对应卡片', page.data.cardIndex, 0);
 suite.eq('标出一处后小字变成邀请动作', page.data.holdHint, hold.HOLD_IDLE_TEXT);
-suite.eq('没按住时图上仍然没有横幅', page.data.holdBanner, '');
 
 // --- 按住 ---
 
@@ -152,8 +153,6 @@ suite.eq('按住时进入按住态', page.data.holding, true);
 suite.eq('按住时已标出的那处被盖住', coveredOf(page), ['A1']);
 suite.eq('按住时按钮改成「松开，恢复」', page.data.holdBtnLabel, hold.holdLabel(true));
 suite.eq('按住时小字让位', page.data.holdHint, '');
-suite.eq('按住时图上出现点破差异的话', page.data.holdBanner, '刚才先跳出来的是「限时倒计时」');
-suite.ok('这句话里带着陷阱名', page.data.holdBanner.indexOf('限时倒计时') !== -1);
 suite.eq('按住时分数依然可读（没被清掉）', page.data.hookProgress, '1 / 2');
 
 // --- 按住期间不许误点把状态改乱 ---
@@ -174,7 +173,6 @@ page.onHoldEnd();
 
 suite.eq('松手后退出按住态', page.data.holding, false);
 suite.eq('松手后盖子全没了', coveredOf(page).length, 0);
-suite.eq('松手后横幅也没了', page.data.holdBanner, '');
 assertSame(suite, '松手后逐字段回到按住之前', page, beforeHold);
 
 // --- 连续按 10 次不出现状态错乱 ---
@@ -219,25 +217,47 @@ page.onCardTap(tap(null, 'B1'));
 suite.eq('两处都标出后引导条换成「找齐了」的下一步', page.data.guide, '都找齐了。按住上面只看商品，或翻下一张');
 suite.eq('找齐后引导条不再是「点卡片」', page.data.allDone, true);
 page.onHoldStart();
-suite.eq('两处都标出时，两个名字都进横幅',
-  page.data.holdBanner, '刚才先跳出来的是「限时倒计时」和「划线价锚定」');
 suite.eq('两处都标出时，图上盖住两处', coveredOf(page), ['A1', 'B1']);
 page.onHoldEnd();
 
-// --- 换到「练」的那一屏：进场就已经标出一处，按钮可以直接用 ---
+// --- 编号跟着「找到的先后」走：第一个点中的永远是 ① ---
+// （修的 bug：先点中数据顺序靠后的那处，图上却跳出 ②——编号不该跟数据顺序，该跟人）
+
+const seq = makePage();
+seq.onLoad();
+// 先点中数据里的第二处（划线价）：它就是 ①，卡片也切到它
+seq.onHitTap(tap(null, 'B1', 2));
+suite.eq('先点中数据里的第二处时，它的编号是 ①', seq.data.hooks[1].order, 1);
+suite.eq('先点中它时，卡片也切到它', seq.data.cardIndex, 1);
+suite.eq('没点中的那处还是热区，不出框', seq.data.hooks[0].revealed, false);
+// 再点中第一处：接着编号 ②，先找到的那个不挪位
+seq.onHitTap(tap(null, 'A1', 1));
+suite.eq('后点中的那处接着编号 ②', seq.data.hooks[0].order, 2);
+suite.eq('先找到的 ① 不因为数据顺序靠前而被挤成 ②', seq.data.hooks[1].order, 1);
+// 点图上已标出的框：按 id 把对应卡片切到前面来
+seq.onMarkTap({ currentTarget: { dataset: { id: 'A1' } } });
+suite.eq('点 ② 的框，卡片切到 ②', seq.data.cardIndex, 0);
+seq.onMarkTap({ currentTarget: { dataset: { id: 'B1' } } });
+suite.eq('点 ① 的框，卡片切到 ①', seq.data.cardIndex, 1);
+
+// --- 换到「练」的那一屏：不再预制任何一处，先点图上的热区 ---
 
 page.onNextShot();
 
 suite.eq('换屏后停在第二张', page.data.shotIndex, 1);
 suite.eq('换屏后没在按住', page.data.holding, false);
-suite.eq('换屏后按钮是可用的（练的那屏进场就替你标了一处）', page.data.holdReady, true);
+suite.eq('换屏后按钮还锁着（练的那屏也不给预制的了）', page.data.holdReady, false);
 suite.eq('换屏后图上没有残留的盖子', coveredOf(page).length, 0);
-suite.eq('换屏后没有残留的横幅', page.data.holdBanner, '');
-suite.eq('练屏的引导条跟着屏型换（还剩一处）', page.data.guide, '还有一处，你觉得在哪？');
+suite.eq('练屏的引导条跟着屏型换（两处都靠自己找）', page.data.guide, '这张图里有 2 处，你来找找看');
 suite.eq('练屏有「直接显示」退路', page.data.skipLabel, '直接显示');
 
+// 和第一屏同一个入口：点中图上的热区，卡片才上线
+page.onHitTap(tap(null, 'C2', 1));
+suite.eq('第二屏点图上的热区也能标出一处', page.data.holdReady, true);
+suite.eq('点中后轮到对应卡片', page.data.cardIndex, 0);
+
 page.onHoldStart();
-suite.eq('在第二屏按住的，只盖第二屏已标出的那一处', coveredOf(page), ['C3']);
+suite.eq('在第二屏按住的，只盖第二屏已标出的那一处', coveredOf(page), ['C2']);
 page.onHoldEnd();
 
 // 按住的时候换屏（一只手按住、另一只手点「下一张」）：盖子不能跟到新屏
@@ -245,7 +265,6 @@ page.onHoldStart();
 page.onNextShot();
 suite.eq('按住时换屏，按住态被清掉', page.data.holding, false);
 suite.eq('按住时换屏，新屏上没有盖子', coveredOf(page).length, 0);
-suite.eq('按住时换屏，新屏上没有横幅', page.data.holdBanner, '');
 suite.eq('按住时换屏后停在第三张', page.data.shotIndex, 2);
 
 // --- 最后一屏：没有下一张 ---
@@ -260,10 +279,9 @@ suite.eq('最后一屏自己知道是最后一屏', page.data.isLastShot, true);
 
 page.onPrevShot();
 suite.eq('第三屏点「上一张」回到第二张', page.data.shotIndex, 1);
-suite.eq('回退到第二屏，之前标出的 C3 原样还在', revealedIds(page), ['C3']);
+suite.eq('回退到第二屏，之前标出的 C3 原样还在', revealedIds(page), ['C2']);
 suite.eq('回退后按住照常可用', page.data.holdReady, true);
 suite.eq('回退后图上没有残留的盖子', coveredOf(page).length, 0);
-suite.eq('回退后没有残留的横幅', page.data.holdBanner, '');
 
 page.onPrevShot();
 suite.eq('再退回到第一张', page.data.shotIndex, 0);
@@ -275,7 +293,7 @@ suite.eq('第一张自己知道是第一张', page.data.isFirstShot, true);
 
 // 回退后再前进：恢复的是存档，不是重新初始化
 page.onNextShot();
-suite.eq('回退后再前进，第二屏的进度原样还原', revealedIds(page), ['C3']);
+suite.eq('回退后再前进，第二屏的进度原样还原', revealedIds(page), ['C2']);
 page.onNextShot();
 suite.eq('再前进到第三屏，放手屏的存档是空集（离开时一处都没标）', revealedIds(page), []);
 
@@ -289,7 +307,7 @@ suite.eq('最后一屏向左滑，没有下一张，原地不动', page.data.sho
 page.onStageTouchStart({ touches: [{ clientX: 200, clientY: 400 }] });
 page.onStageTouchEnd({ changedTouches: [{ clientX: 320, clientY: 400 }] });
 suite.eq('图上向右滑一记，退回上一张', page.data.shotIndex, 1);
-suite.eq('滑动翻页同样保留进度（和按钮回退走同一条 goShot）', revealedIds(page), ['C3']);
+suite.eq('滑动翻页同样保留进度（和按钮回退走同一条 goShot）', revealedIds(page), ['C2']);
 
 const beforeSmallMove = page.data.shotIndex;
 page.onStageTouchStart({ touches: [{ clientX: 200, clientY: 400 }] });
@@ -338,16 +356,18 @@ fresh.onCardTap(tap(null, 'B1'));
 fresh.onMakeCard();
 suite.eq('两处都标出时按示例顺序带上两个 id', navigations[0], '/pages/card/index?shot=0&ids=A1,B1');
 
-// 换到第二屏（find-one 进场就标了一处）：卡片入口自然也是开的
+// 换到第二屏（不给预制了）：标出一处后卡片入口才开
 navigations.length = 0;
 fresh.onNextShot();
-suite.eq('第二屏进场就能做卡片（它进场就标了一处）', fresh.data.canMakeCard, true);
+suite.eq('第二屏刚进场（一处都没标）不能做卡片', fresh.data.canMakeCard, false);
+fresh.onHitTap(tap(null, 'C2', 1));
+suite.eq('第二屏点图上的热区标出一处后，可以做卡片', fresh.data.canMakeCard, true);
 fresh.onMakeCard();
 suite.ok('第二屏的跳转带的是第二屏的序号', navigations[0].indexOf('shot=1') !== -1);
-suite.ok('第二屏的跳转带的是第二屏已标出的那一处', navigations[0].indexOf('ids=C3') !== -1);
+suite.ok('第二屏的跳转带的是第二屏已标出的那一处', navigations[0].indexOf('ids=C2') !== -1);
 
 // 跳过去的 id 必须能真的做出一张卡片 —— 否则就是"能点但打不开"
-const plan = card.buildCard({ shot: SHOTS[1], revealed: ['C3'] });
+const plan = card.buildCard({ shot: SHOTS[1], revealed: ['C2'] });
 suite.ok('第二屏带过去的参数能真的排出一张卡片', !!plan);
 suite.eq('这张卡片上确实只有一处', plan.count, 1);
 
@@ -357,7 +377,7 @@ const findPage = makePage();
 findPage.onLoad();
 findPage.goShot(2);
 toasts.length = 0;
-findPage.onCardTap(tap(null, 'D2', 1));
+findPage.onCardTap(tap(null, 'D1', 1));
 suite.eq('第三屏（一处都不给）点卡片点不开', findPage.data.hooks.filter(function (h) { return h.revealed; }).length, 0);
 suite.eq('第三屏点卡片只给一句「先在图里找找看」', toasts[0], '先在图里找找看');
 

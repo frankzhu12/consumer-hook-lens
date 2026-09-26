@@ -135,7 +135,7 @@ function failedNotice(reason) {
 /** 有结果时的引导条：说清下一步，不评价对错 */
 function guideForOwn(count) {
   if (!count || count <= 0) return '';
-  return '它读出了 ' + count + ' 处 · 点卡片看它在哪';
+  return '它读出了 ' + count + ' 处 · 点图上的框，看每一处是什么';
 }
 
 /**

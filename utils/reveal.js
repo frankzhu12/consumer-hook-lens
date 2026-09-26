@@ -12,7 +12,7 @@
 const SHOT_MODES = {
   /** 教：卡片上直接写着陷阱名，点一下看它在哪 */
   REVEAL: 'reveal',
-  /** 练：先替你揭示一处，剩下的自己找 */
+  /** 练：和放手一样全靠自己找（曾预制第一处，现统一为点图揭示） */
   FIND_ONE: 'find-one',
   /** 放手：一处都不给，全靠自己找 */
   FIND_ALL: 'find-all'
@@ -22,12 +22,14 @@ function isFindMode(mode) {
   return mode === SHOT_MODES.FIND_ONE || mode === SHOT_MODES.FIND_ALL;
 }
 
-/** 进这一屏时先替用户揭示哪几处 */
+/**
+ * 进这一屏时先替用户揭示哪几处。
+ *
+ * 已经**一处都不预给了**（产品决定：三段示例统一「先点图、卡片才上线」，
+ * 第二、三屏不再预制第一处）。函数保留是因为它是入屏初始化的唯一出口，
+ * 以后要恢复预制，只改这里。
+ */
 function initialRevealed(mode, hooks) {
-  if (mode === SHOT_MODES.FIND_ONE) {
-    if (!Array.isArray(hooks) || hooks.length === 0) return [];
-    return [hooks[0].id];
-  }
   return [];
 }
 
@@ -118,7 +120,7 @@ function guideText(mode, hooks, revealed) {
   if (!Array.isArray(hooks) || hooks.length === 0) return '';
   if (allRevealed(hooks, revealed)) return '都找齐了。按住上面只看商品，或翻下一张';
   if (isFindMode(mode)) return findHint(mode, hooks, revealed);
-  return '点下面的卡片，看它在图上的哪里';
+  return '点图上你觉得是消费陷阱的地方，这里会告诉你它是什么';
 }
 /** 想跳过「自己找」时的退路。没有它，找不到就卡住了 */
 function skipHint() {

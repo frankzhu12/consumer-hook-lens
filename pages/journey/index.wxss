@@ -85,24 +85,7 @@
   background: var(--c-bg);
 }
 
-/* 点破差异的横幅：压在图上，绝对定位，长成两行也只多盖一点图，不会顶动整页 */
-.banner {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  box-sizing: border-box;
-  padding: var(--sp-3) var(--sp-4);
-  border-radius: 0 0 var(--r-md) var(--r-md);
-  background: rgba(26, 26, 26, 0.86);
-}
-
-.banner__text {
-  font-size: 25rpx;
-  line-height: 1.5;
-  color: #ffffff;
-}
-
+/* 编号圆片：挂在标注框左上角，编号 = 找到的先后 */
 .mark__no {
   position: absolute;
   top: -18rpx;
@@ -119,7 +102,7 @@
 
 /* 按住，只看商品。
    这是全场唯一有身体参与感的动作：全宽、大目标、绿色（这套演示的主动色），
-   按下的一刻就变色，手指不用等界面的反馈。 */
+   按下的一刻就变色，手指不用等界面的反馈。纯色不加投影 —— 面积已经够醒目 */
 .hold {
   display: flex;
   align-items: center;
@@ -251,10 +234,27 @@
   border-color: var(--c-mark);
 }
 
-/* 还没找到的那张卡：虚线边，一眼看出「它还是个问号」 */
-.card--hidden {
+/* 还没点中的卡片：只是个虚线空壳。它不参与交互 ——
+   入口在图上，先点中，卡片才上线。空壳占住高度，上线时页面不跳 */
+.card--ghost {
   border-style: dashed;
-  background: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* 上线的一瞬：内容轻轻浮上来，眼睛顺着动效落到卡片上 */
+.card__inner {
+  animation: card-in 0.25s ease-out;
+}
+
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(10rpx);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .card__head {
@@ -323,44 +323,131 @@
 
 /* ── 第四屏（用户自己的图）──────────────────────────── */
 
-/* 选图块：替代舞台的位置。它要一眼看出「这里可以按」，
-   所以用示例标注层的暖色当底 —— 和「点一下，看它在哪」是同一种邀请 */
+/* 选图区：大标题 + 三张可选示例卡 + 虚线上传行 + 开始分析大按钮。
+   按定稿排版，不再做虚线大框 —— 卡片自己会说话 */
 .own-pick {
+  margin: var(--sp-3) 40rpx 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: 82%;
-  margin: var(--sp-1) auto 0;
-  padding: var(--sp-4) var(--sp-4) var(--sp-5);
-  box-sizing: border-box;
-  min-height: 560rpx;
-  border-radius: var(--r-md);
-  border: 2rpx dashed rgba(232, 163, 61, 0.55);
-  background: rgba(232, 163, 61, 0.1);
 }
 
 .own-pick__title {
+  font-size: 48rpx;
+  font-weight: 700;
+  color: var(--c-text);
+}
+
+/* 三张示例卡：竖版裁切看个大概就够辨认。
+   选中 = 标注橙的框 + 右上角实心对勾 —— 和图上标注是同一种颜色语言 */
+.own-pick__samples {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--sp-4);
+}
+
+.own-pick__sample {
+  width: 31%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.own-pick__shotbox {
+  position: relative;
+  width: 100%;
+  height: 380rpx;
+  border-radius: var(--r-md);
+  border: 3rpx solid var(--c-line);
+  overflow: hidden;
+}
+
+.own-pick__sample--on .own-pick__shotbox {
+  border-color: var(--c-mark);
+}
+
+.own-pick__shot {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* 右上角的单选圈：没选是白底描边空心，选中填标注橙 */
+.own-pick__radio {
+  position: absolute;
+  top: 12rpx;
+  right: 12rpx;
+  box-sizing: border-box;
+  width: 44rpx;
+  height: 44rpx;
+  border-radius: 50%;
+  border: 3rpx solid rgba(0, 0, 0, 0.15);
+  background: rgba(255, 255, 255, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.own-pick__radio--on {
+  border-color: var(--c-mark);
+  background: var(--c-mark);
+}
+
+.own-pick__tick {
+  font-size: 26rpx;
+  font-weight: 700;
+  color: #ffffff;
+  line-height: 1;
+}
+
+/* 卡片下面的小字标签：选中的跟着变橙、加重 */
+.own-pick__label {
+  margin-top: var(--sp-2);
+  font-size: 28rpx;
+  color: var(--c-text-2);
+}
+
+.own-pick__label--on {
+  color: var(--c-mark);
+  font-weight: 700;
+}
+
+/* 上传行：虚线框横条，和示例卡分开说话 */
+.own-pick__upload {
+  margin-top: var(--sp-5);
+  padding: var(--sp-4) var(--sp-4);
+  border-radius: var(--r-lg);
+  border: 2rpx dashed rgba(0, 0, 0, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.own-pick__upload-text {
   font-size: 32rpx;
   font-weight: 500;
   color: var(--c-text);
 }
 
-.own-pick__hint {
-  margin-top: var(--sp-2);
-  font-size: 25rpx;
+.own-pick__upload-arrow {
+  font-size: 36rpx;
   color: var(--c-text-3);
+  line-height: 1;
 }
 
-.own-pick__btn {
-  margin-top: var(--sp-5);
-  padding: var(--sp-3) var(--sp-5);
+/* 开始分析：全宽标注橙大按钮，本页最重的视觉档 */
+.own-pick__go {
+  margin-top: 64rpx;
+  height: 104rpx;
   border-radius: var(--r-lg);
-  background: var(--c-accent);
+  background: var(--c-mark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.own-pick__btn-text {
-  font-size: 28rpx;
+.own-pick__go-text {
+  font-size: 36rpx;
+  font-weight: 700;
   color: #ffffff;
 }
 

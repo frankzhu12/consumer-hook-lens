@@ -42,14 +42,21 @@ function buildHookViews(shot, revealed, holding) {
     let note = pattern.note;
     if (hidden) {
       state = '还没找到';
-      note = '点一下图上你觉得可疑的地方';
+      note = '点一下图上你觉得是消费陷阱的地方';
     } else if (isOn) {
       state = reveal.isFindMode(shot.mode) ? '找到了 · 点一下收起' : '已标出 · 点一下收起';
     }
 
+    // 编号跟着「找到的先后」走，不跟数据顺序走：
+    // 用户第一个点中的就是 ①，第二个才是 ② —— 先点中划线价也不该跳出一个 ②。
+    // 没揭示的不显示编号（没有框、没有卡内容），编号随手给一个稳定值即可。
+    const isRevealedNow = isOn && !hidden;
+    const foundAt = revealed.indexOf(h.id);
+    const order = isRevealedNow && foundAt !== -1 ? foundAt + 1 : i + 1;
+
     hooks.push({
       id: h.id,
-      order: i + 1,
+      order: order,
       name: pattern.name,
       // 用户自己的图：卡片上优先给模型摘出来的图上原话（evidence），
       // 它是对着这张图说的话，比词典里的通用机制句更有说服力。
@@ -89,8 +96,6 @@ Page({
     holdBtnLabel: '',
     /** 按钮下面那行小字：邀请动作 */
     holdHint: '',
-    /** 压在图上那条横幅：点破差异。不按住就不出现 */
-    holdBanner: '',
     /**
      * 能不能做卡片。条件是「至少标出一处」，和 holdReady 恰好相同，
      * 但**故意分成两个字段** —— 它们回答的是两个问题，以后要分开改时不用动对方。
@@ -107,10 +112,17 @@ Page({
     /** 失败态那块的内容：标题 + 一行小字 + 两个出口 */
     ownNotice: null,
     /** 第三屏收尾的入口：三处都标完才出现，这是演示脚本的转折点 */
-    showOwnEntry: false
+    showOwnEntry: false,
+
+    /** 第四屏可以直接选用的示例图（和三段示例同一批素材） */
+    sampleImages: SHOTS.map(function (s) { return s.image; }),
+    /** 三张示例卡下面的小字标签（对应示例的场景：购物 / 支付 / 活动） */
+    sampleLabels: ['购物', '支付', '活动'],
+    /** 当前选中的示例卡下标。-1 = 一张都没选 */
+    ownSampleIndex: -1
   },
 
-  onLoad: function () {
+  onLoad: function (options) {
     this.revealed = [];
     this.holding = false;
     /** 每一屏的进度存档：shotIndex → 已揭示的 id 数组。回退时靠它恢复 */
@@ -130,7 +142,8 @@ Page({
     /** done 态的 shot（Shot 形状，标注已映射进去） */
     this.ownShotData = null;
 
-    this.goShot(0);
+    // 主页「上传截图」带 screen=own 进来：直接落到第四屏，不走前三段示例
+    this.goShot(options && options.screen === 'own' ? OWN_INDEX : 0);
   },
 
   goShot: function (index) {
@@ -182,7 +195,6 @@ Page({
     const hooks = buildHookViews(shot, this.revealed, holding);
 
     const holdReady = hold.canHold(this.revealed);
-    const caption = hold.holdCaption(shot.hooks, this.revealed);
     const allDone = reveal.allRevealed(shot.hooks, this.revealed);
 
     this.setData({
@@ -196,7 +208,6 @@ Page({
       holdReady: holdReady,
       holdBtnLabel: hold.holdLabel(holding),
       holdHint: hold.holdHintText(holdReady, holding),
-      holdBanner: hold.holdBannerText(holdReady, holding, caption),
       canMakeCard: holdReady,
       // 第三屏收尾的转折点：三处都标完，「用你自己的图试一次」才出现
       showOwnEntry: this.data.isLastShot && allDone
@@ -260,7 +271,6 @@ Page({
         holdReady: false,
         holdBtnLabel: hold.holdLabel(false),
         holdHint: '',
-        holdBanner: '',
         canMakeCard: false,
         showOwnEntry: false,
         ownState: state,
@@ -274,7 +284,6 @@ Page({
 
     const hooks = buildHookViews(shot, this.revealed, holding);
     const holdReady = hold.canHold(this.revealed);
-    const caption = hold.holdCaption(shot.hooks, this.revealed);
 
     let guide = '';
     if (state === analyze.OWN_STATES.BUSY) {
@@ -296,7 +305,6 @@ Page({
       holdReady: holdReady,
       holdBtnLabel: hold.holdLabel(holding),
       holdHint: hold.holdHintText(holdReady, holding),
-      holdBanner: hold.holdBannerText(holdReady, holding, caption),
       // 第四屏做卡片要跨页带图，7.4c 再接；现在先关死，不开一个「能点但打不开」的门
       canMakeCard: false,
       showOwnEntry: false,
@@ -313,6 +321,47 @@ Page({
 
   // ── 第四屏：选图 → 上传 → 读图 ──────────────────────
   // 链路上每一步失败都落到 setOwnFailed，没有一个分支会「悄悄没下文」。
+
+  /** 点一张示例卡：只是选中它（橙框 + 对勾），链路等「开始分析」才启动。
+   *  再点别的卡就换选中，再点同一张保持选中 —— 选中和开跑是两步，别混在一起 */
+  onPickSample: function (e) {
+    const index = Number(e && e.currentTarget && e.currentTarget.dataset.index);
+    if (!SHOTS[index]) return;
+    this.setData({ ownSampleIndex: index });
+  },
+
+  /** 开始分析：把选中的示例图送进读图链路。素材在代码包里，
+   *  云存储上传只认真实本地文件，所以先复制一份到用户目录再走同一条链路；
+   *  复制不了（机型差异）就用代码包原路径继续 —— 链路上自己的守卫会接住真正的失败 */
+  onStartAnalyze: function () {
+    const index = this.data.ownSampleIndex;
+    if (index < 0 || !SHOTS[index]) {
+      // 没选就点：不静默、不替用户猜一张，一句话说清少什么
+      wx.showToast({ title: '先选一张截图', icon: 'none' });
+      return;
+    }
+    const shot = SHOTS[index];
+    const self = this;
+    let fs = null;
+    if (wx.getFileSystemManager && wx.env && wx.env.USER_DATA_PATH) {
+      fs = wx.getFileSystemManager();
+    }
+    if (!fs) {
+      this.ownProcess(shot.image);
+      return;
+    }
+    const dest = wx.env.USER_DATA_PATH + '/sample-' + index + '.jpg';
+    fs.copyFile({
+      srcPath: shot.image,
+      destPath: dest,
+      success: function () {
+        self.ownProcess(dest);
+      },
+      fail: function () {
+        self.ownProcess(shot.image);
+      }
+    });
+  },
 
   onPickImage: function () {
     const self = this;
@@ -548,21 +597,28 @@ Page({
   /** 点图上已经标出来的框：把对应卡片切到前面来 */
   onMarkTap: function (e) {
     if (this.holding) return;
-    const order = Number(e.currentTarget.dataset.order);
-    if (!order) return;
-    this.setData({ cardIndex: order - 1 });
+    const id = e.currentTarget.dataset.id;
+    if (!id) return;
+    this.setData({ cardIndex: this.hookIndexById(id) });
   },
 
   /** 在图上点中了一处还没找到的陷阱 —— 这就是「找到」 */
   onHitTap: function (e) {
     if (this.holding) return;
-    const order = Number(e.currentTarget.dataset.order);
     const id = e.currentTarget.dataset.id;
     if (!id) return;
     this.revealed = reveal.toggleRevealed(this.revealed, id);
-    const next = {};
-    if (order) next.cardIndex = order - 1;
+    const next = { cardIndex: this.hookIndexById(id) };
     this.setData(next, this.refresh);
+  },
+
+  /** 按 id 找 hook 在 hooks 数组里的下标；找不到就停在当前卡片 */
+  hookIndexById: function (id) {
+    const list = this.data.hooks || [];
+    for (let i = 0; i < list.length; i++) {
+      if (list[i].id === id) return i;
+    }
+    return this.data.cardIndex;
   },
 
   /** 点在图上、但没点中任何一处。不判错，只给一句轻提示 */
@@ -586,7 +642,8 @@ Page({
 
   onNextShot: function () {
     const next = this.data.shotIndex + 1;
-    // 第四屏只能从第三屏收尾的入口进去，不接在翻页箭头后面
+    // 第四屏的两个入口：第三屏收尾的入口、主页「上传截图」带参直达。
+    // 翻页箭头仍然不接第四屏 —— 顺着示例走完才算完成引导
     if (next >= OWN_INDEX) return;
     this.goShot(next);
   },

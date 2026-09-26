@@ -42,6 +42,10 @@ const calls = {
   lastDetect: null  // { name, data }
 };
 
+// 示例图复制（代码包 → 用户目录）的桩：队列 + 挂起，和云链路同一套办法
+let pendingCopy = null;
+const copyQueue = [];
+
 /** 桩给的图幅。600×900 是压缩后的典型尺寸，改它就能模拟别的机型 */
 let imageInfoSize = { w: 600, h: 900 };
 
@@ -55,6 +59,23 @@ global.wx = {
   },
   navigateTo: function () {},
   navigateBack: function () {},
+  env: { USER_DATA_PATH: '/tmp/wxfake/usr' },
+  getFileSystemManager: function () {
+    return {
+      copyFile: function (opts) {
+        if (copyQueue.length === 0) {
+          pendingCopy = opts;
+          return;
+        }
+        const r = copyQueue.shift();
+        if (r.ok) {
+          if (opts.success) opts.success();
+        } else if (opts.fail) {
+          opts.fail(r.res || {});
+        }
+      }
+    };
+  },
   chooseMedia: function (opts) {
     calls.choose += 1;
     if (chooseQueue.length === 0) {
@@ -182,6 +203,57 @@ function pickThenDetect(page, result) {
   pendingDetect.success({ result: result });
 }
 
+// --- 主页「上传截图」直达：带 screen=own 打开就直接落在第四屏 ---
+
+const direct = makePage();
+direct.onLoad({ screen: 'own' });
+suite.eq('带 screen=own 打开，直接就是第四屏', direct.data.isOwn, true);
+suite.eq('带 screen=own 打开，序号接在示例后面', direct.data.shotIndex, SHOTS.length);
+suite.eq('直达第四屏也从选图态起步', direct.data.ownState, analyze.OWN_STATES.PICK);
+suite.ok('直达第四屏不带示例的图进来', !direct.data.shot);
+
+// 不带参数打开仍然从第一屏开始 —— 老路径不能被新参数带偏
+const normal = makePage();
+normal.onLoad();
+suite.eq('不带参数打开，还是从第一屏开始', normal.data.shotIndex, 0);
+suite.eq('不带参数打开，不是第四屏', normal.data.isOwn, false);
+
+// --- 第四屏选示例图：先选中（点卡只改选中态），点「开始分析」才进读图链路 ---
+
+const sample = makePage();
+sample.onEnterOwn();
+suite.eq('进第四屏时一张都没选', sample.data.ownSampleIndex, -1);
+sample.onPickSample({ currentTarget: { dataset: { index: 0 } } });
+suite.eq('点示例卡只是选中，不进上传链路', calls.upload, 0);
+suite.eq('选中的是点的那张', sample.data.ownSampleIndex, 0);
+suite.eq('选中后还停在选图态', sample.data.ownState, analyze.OWN_STATES.PICK);
+
+// 没选就点开始分析：只弹提示，不开链路
+const goEmpty = makePage();
+goEmpty.onEnterOwn();
+const toastBefore = toasts.length;
+goEmpty.onStartAnalyze();
+suite.ok('没选就点开始分析，只弹一句提示', toasts.length === toastBefore + 1);
+suite.eq('没选就点开始分析，不进上传链路', calls.upload, 0);
+
+// 选中之后再点开始分析：复制成功，走和自选图完全相同的读图链路
+copyQueue.push({ ok: true });
+sample.onStartAnalyze();
+suite.eq('点开始分析才进上传链路（复制成功后上传一次）', calls.upload, 1);
+suite.ok(
+  '上传的是复制到用户目录的副本，不是代码包原路径',
+  calls.lastUpload.filePath.indexOf('/tmp/wxfake/usr/sample-0') === 0
+);
+suite.eq('选中的示例图进入读图中的 busy 态', sample.data.ownState, analyze.OWN_STATES.BUSY);
+
+// 复制失败（机型差异）不能断链：退回代码包原路径继续
+const sample2 = makePage();
+sample2.onEnterOwn();
+sample2.onPickSample({ currentTarget: { dataset: { index: 1 } } });
+copyQueue.push({ ok: false });
+sample2.onStartAnalyze();
+suite.ok('复制失败就退回原路径继续上传', calls.lastUpload.filePath === '/assets/samples/02.jpg');
+
 // --- 入口：只在第三屏收尾出现 ---
 
 const entry = makePage();
@@ -205,7 +277,6 @@ suite.eq('刚进来是选图态', entry.data.ownState, analyze.OWN_STATES.PICK);
 suite.eq('选图态没有 shot（选图块顶上来）', entry.data.shot, null);
 suite.eq('选图态图上没有任何标注残留', entry.data.hooks, []);
 suite.eq('选图态引导条是空的（选图块自己会说话）', entry.data.guide, '');
-suite.eq('选图态没有横幅', entry.data.holdBanner, '');
 suite.eq('选图态不能做卡片', entry.data.canMakeCard, false);
 suite.eq('进第四屏后入口自己收起来', entry.data.showOwnEntry, false);
 suite.eq('第四屏后面没有下一张（箭头置灰）', entry.data.isLastShot, true);
@@ -242,9 +313,10 @@ busy.onEnterOwn();
 
 // 用户取消选图：停在选图态就是正确反应
 chooseQueue.push({ ok: false });
+const uploadBeforeCancel = calls.upload;
 busy.onPickImage();
 suite.eq('取消选图后仍停在选图态', busy.data.ownState, analyze.OWN_STATES.PICK);
-suite.eq('取消选图不会触发上传', calls.upload, 0);
+suite.eq('取消选图不会触发上传', calls.upload, uploadBeforeCancel);
 
 // 选图成功：链路停在「正在上传」
 startBusyAtUpload(busy);
@@ -280,7 +352,6 @@ busy.onCardTap(tapId(null, 'A1'));
 suite.eq('点卡片揭开了第一处', busy.data.holdReady, true);
 busy.onHoldStart();
 suite.eq('按住时揭开的框被盖住', busy.data.hooks.filter(function (h) { return h.covered; }).map(function (h) { return h.id; }), ['A1']);
-suite.ok('横幅点破了名字', busy.data.holdBanner.indexOf(getHookPattern('A1').name) !== -1);
 busy.onHoldEnd();
 suite.eq('松手后照常复原', busy.data.hooks.filter(function (h) { return h.covered; }).length, 0);
 

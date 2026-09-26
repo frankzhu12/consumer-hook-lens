@@ -15,6 +15,7 @@
  *   MODEL_API_KEY   Bearer 令牌（**唯一敏感的一项**）
  *   MODEL_NAME      模型名，如 qwen3.8-omni-flash
  *   MODEL_REASONING_EFFORT  （可选）思考强度，默认 none —— 见下面「关思考」那条实测
+ *   MODEL_IMAGE_DETAIL      （可选）图片保真档位，默认 high —— 见下面「detail」那条说明
  * 前三个都配齐，这条才生效；缺一个就整体不走这里（由调用方决定退回哪条路）。
  *
  * ── 为什么默认关思考（reasoning_effort: 'none'）──
@@ -54,7 +55,13 @@ function readConfig(env) {
     model: String(e.MODEL_NAME || ''),
     // 默认关思考（理由见文件头那条实测）。换成不吃这个参数的模型时把它配成空串，
     // 请求体里就不会出现这个字段。
-    reasoningEffort: e.MODEL_REASONING_EFFORT !== undefined ? String(e.MODEL_REASONING_EFFORT) : 'none'
+    reasoningEffort: e.MODEL_REASONING_EFFORT !== undefined ? String(e.MODEL_REASONING_EFFORT) : 'none',
+    // ── 为什么默认 high ──
+    // 这份产品的输出是**坐标**，而视觉模型的空间定位精度和拿到的图保真度直接相关：
+    // 低档图被服务商压缩过，模型看到的是糊图，框自然容易歪。
+    // detail 是 OpenAI 兼容格式 image_url 的标准字段，大多数端点都认识；
+    // 真遇到不吃它的端点（同 reasoningEffort 一样会 400 的那种），配成空串整个不发。
+    imageDetail: e.MODEL_IMAGE_DETAIL !== undefined ? String(e.MODEL_IMAGE_DETAIL) : 'high'
   };
 }
 
@@ -132,6 +139,17 @@ function extractContent(body) {
 }
 
 /**
+ * 拼图片段。detail 为空串时整个不带 —— 和 reasoningEffort 同一条规矩：
+ * 不吃的字段一个字都别多给，免得对端因为不认识的字段直接 400。
+ */
+function buildImageUrl(image, detail) {
+  if (typeof detail === 'string' && detail !== '') {
+    return { url: image, detail: detail };
+  }
+  return { url: image };
+}
+
+/**
  * 造一个 callModel，形状和 defense.js 要求的一致：(attempt) => Promise<string>。
  *
  * @param {object} options
@@ -153,6 +171,8 @@ function createHttpCallModel(options) {
   // undefined = 不带这个字段；其余值（含空串）原样传
   const reasoningEffort =
     opts.reasoningEffort !== undefined ? opts.reasoningEffort : config.reasoningEffort;
+  const imageDetail =
+    opts.imageDetail !== undefined ? opts.imageDetail : config.imageDetail;
 
   // ── 为什么默认是 data URI，而不是把链接交给模型 ──
   // 实测：传微信 COS 的临时链接给模型，云函数里**两次都在 20 秒整超时** ——
@@ -176,7 +196,7 @@ function createHttpCallModel(options) {
           role: 'user',
           content: [
             { type: 'text', text: prompt },
-            { type: 'image_url', image_url: { url: image } }
+            { type: 'image_url', image_url: buildImageUrl(image, imageDetail) }
           ]
         }
       ]
@@ -207,5 +227,6 @@ module.exports = {
   isConfigured: isConfigured,
   defaultHttpPost: defaultHttpPost,
   extractContent: extractContent,
+  buildImageUrl: buildImageUrl,
   createHttpCallModel: createHttpCallModel
 };

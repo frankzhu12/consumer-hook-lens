@@ -55,7 +55,7 @@ suite.eq('跳过「自己找」的退路始终存在', reveal.skipHint(), '直�
 
 // --- 引导条：这一步该干什么（第一次打开的人唯一的说明书） ---
 
-suite.eq('教学模式引导先去点卡片', reveal.guideText('reveal', HOOKS, []), '点下面的卡片，看它在图上的哪里');
+suite.eq('教学模式引导直接点图', reveal.guideText('reveal', HOOKS, []), '点图上你觉得是消费陷阱的地方，这里会告诉你它是什么');
 suite.eq('练模式引导接着找', reveal.guideText('find-one', HOOKS, ['C3']), '还有一处，你觉得在哪？');
 suite.eq('找齐了引导去按住或翻页', reveal.guideText('find-one', HOOKS, ['C3', 'D1']), '都找齐了。按住上面只看商品，或翻下一张');
 suite.eq('教学模式找齐了同样给下一步', reveal.guideText('reveal', HOOKS, ['C3', 'D1']), '都找齐了。按住上面只看商品，或翻下一张');
@@ -74,7 +74,7 @@ suite.eq('放手模式算找', reveal.isFindMode('find-all'), true);
 suite.eq('未知模式一律不当作找（宁可退回教学，也不要卡住）', reveal.isFindMode('whatever'), false);
 
 suite.eq('教学模式进屏时什么都不预先揭示', reveal.initialRevealed('reveal', HOOKS), []);
-suite.eq('练模式进屏时先替你揭示第一处', reveal.initialRevealed('find-one', HOOKS), ['C3']);
+suite.eq('练模式进屏时也不再预制（统一为点图揭示）', reveal.initialRevealed('find-one', HOOKS), []);
 suite.eq('放手模式进屏时一处都不给', reveal.initialRevealed('find-all', HOOKS), []);
 suite.eq('练模式遇到空数据不会崩', reveal.initialRevealed('find-one', []), []);
 

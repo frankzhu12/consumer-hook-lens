@@ -79,16 +79,21 @@ suite.eq(
   appJson.window.navigationBarTitleText
 );
 
-// --- 上传入口：阶段 7 之前必须诚实地置灰 ---
+// --- 上传入口：直达 journey 第四屏（读用户自己的图） ---
 
-suite.eq('上传截图未就绪（阶段 7 之前不许做假入口）', page.data.uploadReady, false);
+page.onUploadTap();
+suite.eq(
+  '点「上传截图」带 screen=own 跳 journey 第四屏',
+  navigations[0],
+  '/pages/journey/index?screen=own'
+);
 
 // --- 主入口：把人送进 journey ---
 
 page.onStartExamples();
-suite.eq('点「开始三段示例」跳 journey 页', navigations[0], '/pages/journey/index');
+suite.eq('点「看看例子」跳 journey 页', navigations[1], '/pages/journey/index');
 
 page.onStartExamples();
-suite.eq('连点两次，每次都正常发起跳转（不吞不崩）', navigations.length, 2);
+suite.eq('连点两次，每次都正常发起跳转（不吞不崩）', navigations.length, 3);
 
 suite.done();
